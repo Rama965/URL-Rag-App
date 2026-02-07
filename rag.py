@@ -11,10 +11,11 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
 
 CHROMA_DIR = "chroma_db"
+
 
 def load_url(url: str):
     loader = UnstructuredURLLoader(
@@ -58,6 +59,11 @@ def create_vector_db(chunks):
     return vectordb
 
 
+def format_docs(docs):
+    """Convert retrieved docs to plain text context"""
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
 def build_rag_chain(db):
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
@@ -95,8 +101,13 @@ Answer (follow the language rules strictly):
 
     retriever = db.as_retriever(search_kwargs={"k": 4})
 
-    return (
-        {"context": retriever, "question": RunnablePassthrough()}
+    chain = (
+        {
+            "context": retriever | RunnableLambda(format_docs),
+            "question": RunnablePassthrough()
+        }
         | prompt
         | llm
     )
+
+    return chain
