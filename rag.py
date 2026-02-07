@@ -1,7 +1,9 @@
-from uuid import uuid4
 import os
+import shutil
 from dotenv import load_dotenv
 load_dotenv()
+
+import chromadb
 
 from langchain_community.document_loaders import UnstructuredURLLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -11,42 +13,64 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 
+# -------------------- CONFIG --------------------
+CHROMA_DIR = "chroma_db"
+
+# -------------------- LOAD URL --------------------
 def load_url(url: str):
     loader = UnstructuredURLLoader(
         urls=[url],
-        languages=["en", "tel", "hi", "ta"]
+        languages=["en", "te", "hi", "ta"]
     )
     return loader.load()
 
-
+# -------------------- SPLIT DOCUMENTS --------------------
 def split_documents(docs):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 1000,
-        chunk_overlap = 100
+        chunk_size=1000,
+        chunk_overlap=100
     )
     return splitter.split_documents(docs)
 
+# -------------------- VECTOR DB --------------------
 def create_vector_db(chunks):
-    embeddings = HuggingFaceEmbeddings(
-        model_name = 'sentence-transformers/all-MiniLM-L6-v2'
-    )
-    return Chroma.from_documents(
-    documents=chunks,
-    embedding=embeddings,
-    persist_directory="chroma_db",
-    collection_name="url_rag"
-  )
+    # Clean old DB (VERY IMPORTANT)
+    if os.path.exists(CHROMA_DIR):
+        shutil.rmtree(CHROMA_DIR)
 
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
+
+    client = chromadb.Client(
+        chromadb.config.Settings(
+            persist_directory=CHROMA_DIR,
+            anonymized_telemetry=False
+        )
+    )
+
+    vectordb = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        client=client,
+        collection_name="url_rag"
+    )
+
+    return vectordb
+
+# -------------------- RAG CHAIN --------------------
 def build_rag_chain(db):
     llm = ChatGroq(
-        model='llama-3.3-70b-versatile',
+        model="llama-3.3-70b-versatile",
         api_key=os.getenv("GROQ_API_KEY"),
-        max_tokens=500
+        max_tokens=500,
+        temperature=0
     )
+
     prompt = PromptTemplate(
-        input_variables=["context","question"],
+        input_variables=["context", "question"],
         template="""
-        You are a helpful url reader.
+You are a helpful URL reader.
 
 STRICT RULES:
 - Use ONLY the context below
@@ -68,7 +92,7 @@ User Question:
 
 Answer (follow the language rules strictly):
 """
-)
+    )
 
     retriever = db.as_retriever(search_kwargs={"k": 4})
 
