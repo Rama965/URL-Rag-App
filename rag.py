@@ -13,10 +13,9 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 
-# -------------------- CONFIG --------------------
+
 CHROMA_DIR = "chroma_db"
 
-# -------------------- LOAD URL --------------------
 def load_url(url: str):
     loader = UnstructuredURLLoader(
         urls=[url],
@@ -24,7 +23,7 @@ def load_url(url: str):
     )
     return loader.load()
 
-# -------------------- SPLIT DOCUMENTS --------------------
+
 def split_documents(docs):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
@@ -32,9 +31,9 @@ def split_documents(docs):
     )
     return splitter.split_documents(docs)
 
-# -------------------- VECTOR DB --------------------
+
 def create_vector_db(chunks):
-    # Clean old DB (VERY IMPORTANT)
+
     if os.path.exists(CHROMA_DIR):
         shutil.rmtree(CHROMA_DIR)
 
@@ -58,7 +57,7 @@ def create_vector_db(chunks):
 
     return vectordb
 
-# -------------------- RAG CHAIN --------------------
+
 def build_rag_chain(db):
     llm = ChatGroq(
         model="llama-3.3-70b-versatile",
